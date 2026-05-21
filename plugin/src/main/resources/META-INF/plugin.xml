@@ -1,0 +1,19 @@
+<!-- Plugin configuration. <version> and <idea-version> are patched in by Gradle. -->
+<idea-plugin>
+    <id>dev.ergo.intellij</id>
+    <name>Ergo</name>
+    <vendor>Ergo</vendor>
+
+    <description><![CDATA[
+        <p><b>Ergo</b> statically determines the concrete error types and values
+        a Go function can return, and surfaces them in the Quick Documentation
+        popup.</p>
+    ]]></description>
+
+    <!-- modules.platform: core APIs. plugins.go: Go PSI, and it restricts the
+         plugin to IDEs with the Go plugin (GoLand, or IDEA Ultimate + Go). -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.go</depends>
+
+    <!-- Extensions (documentationProvider, services) are registered in later phases. -->
+</idea-plugin>

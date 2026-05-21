@@ -18,8 +18,10 @@ The project is split across two languages:
 
 - **Go** — the code-searching and error-analysis logic. This is what currently
   lives in this repository.
-- **Kotlin** — the JetBrains IDE plugin side, written against the IntelliJ
-  Platform SDK. Not present yet; it will invoke the Go search component.
+- **Kotlin** — the JetBrains IDE plugin side (`plugin/`), written against the
+  IntelliJ Platform SDK. Currently a Gradle scaffold with no features; it will
+  invoke the `ergo` binary and show each function's error set in the Quick
+  Documentation popup.
 
 ### Scope decisions
 
@@ -53,6 +55,10 @@ The project is split across two languages:
   (`{"results": …}`, `{"functions": …}`, or `{"error": …}` with exit status 1).
   The output structs in `search`/`analyze` carry the JSON tags; `Kind` marshals
   to its string name.
+
+- `plugin/` — the JetBrains IDE plugin (Kotlin, Gradle, IntelliJ Platform
+  Gradle Plugin 2.x, targets GoLand + the bundled Go plugin). Phase 0 scaffold
+  only — no features yet. Has its own Gradle build; see `plugin/README.md`.
 
 Dependency: `golang.org/x/tools` (for `go/packages` + `go/ssa`).
 
