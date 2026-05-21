@@ -46,8 +46,13 @@ The project is split across two languages:
   (`errors.New` / `fmt.Errorf`, with the literal message and a `Wrapped` flag),
   or `unresolved` (with a reason). `analyze.go` = loading + public API;
   `classify.go` = the SSA value tracing.
-- `cmd/ergo/` — CLI with two subcommands, both `<function-name> <package>`:
-  `find` (resolve → search) and `errors` (analyze).
+- `cmd/ergo/` — CLI with two subcommands, both `[-json] <function-name>
+  <package>`: `find` (resolve → search) and `errors` (analyze). Without `-json`
+  the output is human-readable text; with `-json` each command emits a single
+  JSON object on stdout — the machine-readable format the Kotlin plugin parses
+  (`{"results": …}`, `{"functions": …}`, or `{"error": …}` with exit status 1).
+  The output structs in `search`/`analyze` carry the JSON tags; `Kind` marshals
+  to its string name.
 
 Dependency: `golang.org/x/tools` (for `go/packages` + `go/ssa`).
 

@@ -17,11 +17,11 @@ import (
 
 // Result describes one function or method declaration that matched a search.
 type Result struct {
-	Name string // declared name of the function or method
-	Recv string // receiver type for methods (e.g. "*Buffer"); "" for plain functions
-	File string // path to the file containing the declaration
-	Line int    // 1-based line of the declared name
-	Col  int    // 1-based column of the declared name
+	Name string `json:"name"`           // declared name of the function or method
+	Recv string `json:"recv,omitempty"` // receiver type for methods (e.g. "*Buffer"); "" for plain functions
+	File string `json:"file"`           // path to the file containing the declaration
+	Line int    `json:"line"`           // 1-based line of the declared name
+	Col  int    `json:"col"`            // 1-based column of the declared name
 }
 
 // FindFunction parses every non-test Go file in the package directory dir and

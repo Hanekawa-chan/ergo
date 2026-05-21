@@ -8,6 +8,7 @@
 package analyze
 
 import (
+	"encoding/json"
 	"fmt"
 	"go/token"
 	"go/types"
@@ -46,15 +47,21 @@ func (k Kind) String() string {
 	}
 }
 
+// MarshalJSON renders a Kind as its string name, so machine-readable output
+// carries "sentinel" rather than the numeric enum value.
+func (k Kind) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
 // Finding describes one error a function can return.
 type Finding struct {
-	Kind    Kind
-	Type    string // concrete Go type, e.g. "*os.PathError"
-	Name    string // qualified sentinel name, e.g. "io.EOF"; empty otherwise
-	Message string // literal message of a constructed error, when constant
-	Wrapped bool   // the error wraps another error (fmt.Errorf with %w)
-	Reason  string // why a KindUnresolved finding could not be resolved
-	Pos     string // file:line:col where the error originates
+	Kind    Kind   `json:"kind"`
+	Type    string `json:"type,omitempty"`    // concrete Go type, e.g. "*os.PathError"
+	Name    string `json:"name,omitempty"`    // qualified sentinel name, e.g. "io.EOF"; empty otherwise
+	Message string `json:"message,omitempty"` // literal message of a constructed error, when constant
+	Wrapped bool   `json:"wrapped,omitempty"` // the error wraps another error (fmt.Errorf with %w)
+	Reason  string `json:"reason,omitempty"`  // why a KindUnresolved finding could not be resolved
+	Pos     string `json:"pos,omitempty"`     // file:line:col where the error originates
 }
 
 func (f Finding) key() string {
@@ -63,10 +70,10 @@ func (f Finding) key() string {
 
 // Function holds the analysis result for a single function or method.
 type Function struct {
-	Name     string
-	Recv     string // receiver type for methods; empty for plain functions
-	Pos      string
-	Findings []Finding
+	Name     string    `json:"name"`
+	Recv     string    `json:"recv,omitempty"` // receiver type for methods; empty for plain functions
+	Pos      string    `json:"pos,omitempty"`
+	Findings []Finding `json:"findings"`
 }
 
 // Analyze loads pkg (an import path or directory path, resolved relative to
