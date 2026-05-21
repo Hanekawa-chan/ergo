@@ -21,5 +21,7 @@
              Async because the analyzer runs a subprocess, which is forbidden
              under the read action that wraps synchronous documentation. -->
         <psiTargetProvider implementation="dev.ergo.ErgoDocumentationTargetProvider"/>
+        <!-- Navigates the editor when an error link in the section is clicked. -->
+        <linkHandler implementation="dev.ergo.ErgoDocLinkHandler"/>
     </extensions>
 </idea-plugin>

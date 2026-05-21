@@ -55,7 +55,10 @@ object ErgoDocHtml {
             }
             else -> grayed(escape(f.reason?.ifEmpty { null } ?: "unresolved"))
         }
-        return "<p>$detail&nbsp;&nbsp;${grayed(escape(f.kind))}</p>"
+        // Link the finding to its origin when a source position is known.
+        val href = ErgoDocLinks.href(f.pos)
+        val body = if (href == null) detail else "<a href=\"$href\">$detail</a>"
+        return "<p>$body&nbsp;&nbsp;${grayed(escape(f.kind))}</p>"
     }
 
     private fun qualifiedName(fn: ErgoFunction): String =

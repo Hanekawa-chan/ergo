@@ -6,10 +6,11 @@ return, computed by the `ergo` analyzer in the parent directory.
 ## Status
 
 Phase 3 — hovering a Go function or method shows an "Errors (ergo)" section in
-the Quick Documentation popup. Successful results are cached (invalidated on
-any Go edit), the analyzer subprocess is cancellable, and its PATH is
-augmented from the project's Go SDK. An integration test drives the analyzer
-end to end against a real Go module.
+the Quick Documentation popup, and each listed error links to the source
+location it originates from. Successful results are cached (invalidated on any
+Go edit), the analyzer subprocess is cancellable, and its PATH is augmented
+from the project's Go SDK. An integration test drives the analyzer end to end
+against a real Go module.
 
 ## Prerequisites
 

@@ -35,7 +35,7 @@ class ErgoDocumentationTargetProvider : PsiDocumentationTargetProvider {
     ): DocumentationTarget? {
         if (element !is GoFunctionDeclaration && element !is GoMethodDeclaration) return null
         val name = (element as PsiNamedElement).name?.takeIf { it.isNotEmpty() } ?: return null
-        return ErgoDocumentationTarget(element, originalElement, name)
+        return ErgoDocumentationTarget(element, originalElement, name, element.project)
     }
 }
 
@@ -52,6 +52,7 @@ class ErgoDocumentationTarget(
     private val element: PsiElement,
     private val originalElement: PsiElement?,
     private val name: String,
+    val project: Project,
 ) : DocumentationTarget {
 
     override fun createPointer(): Pointer<out DocumentationTarget> {
@@ -60,7 +61,7 @@ class ErgoDocumentationTarget(
         val name = this.name
         return Pointer {
             val element = elementPtr.element ?: return@Pointer null
-            ErgoDocumentationTarget(element, originalPtr?.element, name)
+            ErgoDocumentationTarget(element, originalPtr?.element, name, element.project)
         }
     }
 
@@ -91,7 +92,7 @@ class ErgoDocumentationTarget(
         } ?: return ""
 
         val section = try {
-            val result = ErgoService.getInstance(context.project).errorsFor(
+            val result = ErgoService.getInstance(project).errorsFor(
                 name,
                 context.dir,
                 context.module,
@@ -108,19 +109,13 @@ class ErgoDocumentationTarget(
     }
 
     /** PSI-derived inputs, gathered together under a single read action. */
-    private data class Context(
-        val base: String?,
-        val dir: Path,
-        val project: Project,
-        val module: Module?,
-    )
+    private data class Context(val base: String?, val dir: Path, val module: Module?)
 
     private fun collectContext(): Context? {
         val dir = element.containingFile?.virtualFile?.parent ?: return null
         return Context(
             base = delegate { it.generateDoc(element, originalElement) },
             dir = Path.of(dir.path),
-            project = element.project,
             module = ModuleUtilCore.findModuleForPsiElement(element),
         )
     }

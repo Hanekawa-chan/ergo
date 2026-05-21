@@ -68,8 +68,10 @@ The project is split across two languages:
   functions/methods: it delegates to the Go plugin for the base documentation
   and appends an "Errors (ergo)" section. It must be async
   (`DocumentationResult.asyncDocumentation`) because the analyzer subprocess
-  cannot block under the read action that wraps synchronous documentation. Has
-  its own Gradle build; see `plugin/README.md`.
+  cannot block under the read action that wraps synchronous documentation.
+  Each finding links to its origin: `ErgoDocHtml` emits `ergo://` links and
+  `ErgoDocLinkHandler` navigates the editor when one is clicked. Has its own
+  Gradle build; see `plugin/README.md`.
 
 Dependency: `golang.org/x/tools` (for `go/packages` + `go/ssa`).
 

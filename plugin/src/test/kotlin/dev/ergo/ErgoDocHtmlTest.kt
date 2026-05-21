@@ -80,4 +80,21 @@ class ErgoDocHtmlTest {
         assertTrue(html.contains("(*Reader).Close"))
         assertTrue(html.contains("(*Writer).Close"))
     }
+
+    @Test
+    fun linksFindingsThatCarryAPosition() {
+        val result = ErgoResult.Success(
+            listOf(
+                ErgoFunction(
+                    name = "F",
+                    findings = listOf(
+                        ErgoFinding(kind = "sentinel", name = "io.EOF", pos = "/src/io.go:44:5"),
+                    ),
+                ),
+            ),
+        )
+        val html = ErgoDocHtml.section(result)
+        assertTrue("a positioned finding should be a link", html.contains("<a href=\"ergo://"))
+        assertTrue(html.contains("io.EOF"))
+    }
 }
