@@ -2,9 +2,11 @@
 //
 // Usage:
 //
-//	ergo <function-name> <package-dir>
+//	ergo <function-name> <package>
 //
-// It prints one tab-separated "file:line:col<TAB>name" record per matching
+// <package> is a Go import path ("encoding/json") or a directory path
+// ("./internal/search"); it is resolved to a source directory via `go list`.
+// ergo prints one tab-separated "file:line:col<TAB>name" record per matching
 // declaration; methods are shown as "(Recv).Name".
 package main
 
@@ -13,19 +15,26 @@ import (
 	"fmt"
 	"os"
 
+	"ergo/internal/resolve"
 	"ergo/internal/search"
 )
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: ergo <function-name> <package-dir>")
+		fmt.Fprintln(os.Stderr, "usage: ergo <function-name> <package>")
 	}
 	flag.Parse()
 	if flag.NArg() != 2 {
 		flag.Usage()
 		os.Exit(2)
 	}
-	name, dir := flag.Arg(0), flag.Arg(1)
+	name, pkg := flag.Arg(0), flag.Arg(1)
+
+	dir, err := resolve.Package(pkg, "")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "ergo:", err)
+		os.Exit(1)
+	}
 
 	results, err := search.FindFunction(dir, name)
 	if err != nil {
@@ -33,7 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 	if len(results) == 0 {
-		fmt.Fprintf(os.Stderr, "ergo: no function %q in %s\n", name, dir)
+		fmt.Fprintf(os.Stderr, "ergo: no function %q in %s\n", name, pkg)
 		os.Exit(1)
 	}
 	for _, r := range results {

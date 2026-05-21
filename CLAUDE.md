@@ -30,15 +30,22 @@ The project is split across two languages:
 
 ## Layout
 
+- `internal/resolve/` — `Package(spec, workdir)` maps a package spec (import
+  path *or* directory path) to its absolute source directory by shelling out to
+  `go list -json`. Delegating to the `go` tool gives module / module-cache /
+  GOROOT awareness for free.
 - `internal/search/` — `FindFunction(dir, name)` parses every non-test `.go`
   file in a single package directory and returns each function/method
   declaration matching `name` (as `Result`: name, receiver, file, line, col).
   Stdlib only — `go/parser` + `go/ast`, no type checking yet.
-- `cmd/ergo/` — thin CLI wrapper: `ergo <function-name> <package-dir>`, prints
-  `file:line:col<TAB>name` per match.
+- `cmd/ergo/` — thin CLI wrapper: `ergo <function-name> <package>` (resolve →
+  search), prints `file:line:col<TAB>name` per match.
 
-`go.mod` has no third-party dependencies. Module-path resolution (import path
-→ directory) and full type analysis are deferred to the error-analysis step.
+`go.mod` has no third-party dependencies. Full type analysis (`go/types`) is
+deferred to the error-analysis step.
+
+Note: `internal/resolve` tests shell out to the `go` tool — fine under
+`go test`, but keep that in mind if the package is reused elsewhere.
 
 ## Commands
 
