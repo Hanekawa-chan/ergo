@@ -37,15 +37,30 @@ The project is split across two languages:
 - `internal/search/` — `FindFunction(dir, name)` parses every non-test `.go`
   file in a single package directory and returns each function/method
   declaration matching `name` (as `Result`: name, receiver, file, line, col).
-  Stdlib only — `go/parser` + `go/ast`, no type checking yet.
-- `cmd/ergo/` — thin CLI wrapper: `ergo <function-name> <package>` (resolve →
-  search), prints `file:line:col<TAB>name` per match.
+  Stdlib only — `go/parser` + `go/ast`, no type checking.
+- `internal/analyze/` — `Analyze(pkg, name, workdir)` reports the errors each
+  function named `name` can return. It loads the package with `go/packages`,
+  builds SSA (`go/ssa`), and traces every value reaching an error-typed
+  `return`, recursing into concrete callees. Each `Finding` has a `Kind`:
+  `sentinel` (e.g. `io.EOF`), `type` (e.g. `*os.PathError`), `constructed`
+  (`errors.New` / `fmt.Errorf`, with the literal message and a `Wrapped` flag),
+  or `unresolved` (with a reason). `analyze.go` = loading + public API;
+  `classify.go` = the SSA value tracing.
+- `cmd/ergo/` — CLI with two subcommands, both `<function-name> <package>`:
+  `find` (resolve → search) and `errors` (analyze).
 
-`go.mod` has no third-party dependencies. Full type analysis (`go/types`) is
-deferred to the error-analysis step.
+Dependency: `golang.org/x/tools` (for `go/packages` + `go/ssa`).
 
-Note: `internal/resolve` tests shell out to the `go` tool — fine under
-`go test`, but keep that in mind if the package is reused elsewhere.
+### Analyzer specifics & known limits
+
+- The SSA memo treats recursion cycles as contributing nothing, so mutually
+  recursive functions can be slightly under-approximated.
+- `fmt.Errorf("%w", err)` is reported as `constructed` + `Wrapped`; the wrapped
+  underlying error is **not** yet extracted (SSA variadic-slice tracing).
+- Interface method calls become `unresolved` findings, by design (see above).
+- Generics are not specially handled (SSA built without `InstantiateGenerics`).
+- `internal/resolve` and `internal/analyze` tests shell out to / drive the `go`
+  tool, so the toolchain must be on `PATH` (always true under `go test`).
 
 ## Commands
 
