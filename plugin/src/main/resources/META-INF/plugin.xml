@@ -15,5 +15,12 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.plugins.go</depends>
 
-    <!-- Extensions (documentationProvider, services) are registered in later phases. -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- order=first: run ahead of the Go plugin's provider, then delegate
+             to it for the base documentation and append the ergo section. -->
+        <lang.documentationProvider
+            language="go"
+            order="first"
+            implementationClass="dev.ergo.ErgoDocumentationProvider"/>
+    </extensions>
 </idea-plugin>

@@ -5,8 +5,10 @@ return, computed by the `ergo` analyzer in the parent directory.
 
 ## Status
 
-Phase 1 — the `ergo` analyzer is cross-compiled, bundled into the plugin, and
-invokable via `ErgoRunner`. Not yet wired into any IDE UI.
+Phase 2 — hovering a Go function or method shows an "Errors (ergo)" section in
+the Quick Documentation popup, listing the concrete errors it can return
+(`ErgoDocumentationProvider`). Results are not cached yet — each hover re-runs
+the analyzer.
 
 ## Prerequisites
 
