@@ -15,12 +15,11 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.plugins.go</depends>
 
-    <extensions defaultExtensionNs="com.intellij">
-        <!-- order=first: run ahead of the Go plugin's provider, then delegate
-             to it for the base documentation and append the ergo section. -->
-        <lang.documentationProvider
-            language="go"
-            order="first"
-            implementationClass="dev.ergo.ErgoDocumentationProvider"/>
+    <extensions defaultExtensionNs="com.intellij.platform.backend.documentation">
+        <!-- Supplies an async DocumentationTarget for Go functions/methods: the
+             Go plugin's documentation with an appended "Errors (ergo)" section.
+             Async because the analyzer runs a subprocess, which is forbidden
+             under the read action that wraps synchronous documentation. -->
+        <psiTargetProvider implementation="dev.ergo.ErgoDocumentationTargetProvider"/>
     </extensions>
 </idea-plugin>
