@@ -76,6 +76,15 @@ func (a *analyzer) classify(v ssa.Value, seen map[ssa.Value]bool) []Finding {
 	}
 	seen[v] = true
 
+	if !types.IsInterface(v.Type()) {
+		if isPointerToInterface(v.Type()) {
+			// The address of an error cell — follow what is stored into it.
+			return a.classifyContents(v, seen)
+		}
+		// A concrete (non-interface) error value.
+		return a.classifyConcrete(v, v, seen)
+	}
+
 	switch v := v.(type) {
 	case *ssa.Const:
 		// A constant of error type can only be nil — no error returned.
@@ -83,7 +92,7 @@ func (a *analyzer) classify(v ssa.Value, seen map[ssa.Value]bool) []Finding {
 
 	case *ssa.MakeInterface:
 		// A concrete value boxed into the error interface.
-		return a.classifyConcrete(v.X, v)
+		return a.classifyConcrete(v.X, v, seen)
 
 	case *ssa.Phi:
 		var out []Finding
@@ -93,12 +102,12 @@ func (a *analyzer) classify(v ssa.Value, seen map[ssa.Value]bool) []Finding {
 		return out
 
 	case *ssa.Call:
-		return a.classifyCall(v, &v.Call)
+		return a.classifyCall(v, &v.Call, seen)
 
 	case *ssa.Extract:
 		// One component of a multi-value result, typically `v, err := f()`.
 		if call, ok := v.Tuple.(*ssa.Call); ok {
-			return a.classifyCall(call, &call.Call)
+			return a.classifyCall(call, &call.Call, seen)
 		}
 		return []Finding{a.unresolved(v, "error from a non-call multi-value expression")}
 
@@ -108,7 +117,8 @@ func (a *analyzer) classify(v ssa.Value, seen map[ssa.Value]bool) []Finding {
 
 	case *ssa.UnOp:
 		if v.Op == token.MUL {
-			return a.classify(v.X, seen) // load through a pointer
+			// Load through a pointer — follow what is stored into the cell.
+			return a.classifyContents(v.X, seen)
 		}
 		return []Finding{a.unresolved(v, "error from an unsupported operation")}
 
@@ -128,20 +138,59 @@ func (a *analyzer) classify(v ssa.Value, seen map[ssa.Value]bool) []Finding {
 
 // classifyConcrete classifies x, a concrete (non-interface) value being used as
 // an error. at is the boxing site, used as a fallback when x has no position.
-func (a *analyzer) classifyConcrete(x ssa.Value, at ssa.Value) []Finding {
+func (a *analyzer) classifyConcrete(x ssa.Value, at ssa.Value, seen map[ssa.Value]bool) []Finding {
 	switch x := x.(type) {
 	case *ssa.Global:
 		return []Finding{a.sentinel(x)}
 	case *ssa.UnOp:
 		if x.Op == token.MUL {
-			return a.classifyConcrete(x.X, at)
+			return a.classifyContents(x.X, seen)
 		}
 	}
 	return []Finding{a.typed(x.Type(), x, at)}
 }
 
-// classifyCall classifies the error produced by a call. at locates the call.
-func (a *analyzer) classifyCall(at ssa.Value, call *ssa.CallCommon) []Finding {
+// classifyContents classifies the error held in a memory cell, by examining
+// every value stored through the pointer ptr.
+func (a *analyzer) classifyContents(ptr ssa.Value, seen map[ssa.Value]bool) []Finding {
+	if ptr == nil || seen[ptr] {
+		return nil
+	}
+	seen[ptr] = true
+
+	// A pointer to a package-level variable is a sentinel error, e.g. io.EOF.
+	if g, ok := ptr.(*ssa.Global); ok {
+		return []Finding{a.sentinel(g)}
+	}
+
+	refs := ptr.Referrers()
+	if refs == nil {
+		return []Finding{a.unresolved(ptr, "error from an opaque memory cell")}
+	}
+	var out []Finding
+	stored := false
+	for _, instr := range *refs {
+		if st, ok := instr.(*ssa.Store); ok && st.Addr == ptr {
+			stored = true
+			out = append(out, a.classify(st.Val, seen)...)
+		}
+	}
+	if !stored {
+		return []Finding{a.unresolved(ptr, "error from a cell with no visible store")}
+	}
+	return out
+}
+
+// isPointerToInterface reports whether t is a pointer whose element is an
+// interface — i.e. the address of a cell that holds an interface value.
+func isPointerToInterface(t types.Type) bool {
+	p, ok := t.Underlying().(*types.Pointer)
+	return ok && types.IsInterface(p.Elem())
+}
+
+// classifyCall classifies the error produced by a call. at locates the call;
+// seen guards the recursion into errors wrapped by fmt.Errorf.
+func (a *analyzer) classifyCall(at ssa.Value, call *ssa.CallCommon, seen map[ssa.Value]bool) []Finding {
 	if call.IsInvoke() {
 		// Interface method call — out of scope by design.
 		return []Finding{a.unresolved(at,
@@ -157,11 +206,47 @@ func (a *analyzer) classifyCall(at ssa.Value, call *ssa.CallCommon) []Finding {
 		return []Finding{a.constructed(at, stringArg(call.Args, 0), false)}
 	case "fmt.Errorf":
 		msg := stringArg(call.Args, 0)
-		return []Finding{a.constructed(at, msg, strings.Contains(msg, "%w"))}
+		wrapIdx, reliable := wrapArgIndices(msg)
+		out := []Finding{a.constructed(at, msg, len(wrapIdx) > 0)}
+		return append(out, a.classifyWrapped(call, wrapIdx, reliable, seen)...)
 	}
 
 	// A concrete callee: recurse into it.
 	return a.analyzeFunc(callee)
+}
+
+// classifyWrapped classifies the error values wrapped by a fmt.Errorf %w verb.
+// wrapIdx holds the variadic-argument indices targeted by %w; when reliable is
+// false those indices are untrustworthy and every error argument is classified.
+func (a *analyzer) classifyWrapped(call *ssa.CallCommon, wrapIdx []int, reliable bool, seen map[ssa.Value]bool) []Finding {
+	if len(wrapIdx) == 0 || len(call.Args) < 2 {
+		return nil
+	}
+	elems, ok := variadicElements(call.Args[1])
+	if !ok {
+		return nil // variadic arguments were not built inline; cannot recover
+	}
+
+	var targets []ssa.Value
+	if reliable {
+		for _, i := range wrapIdx {
+			if v := elems[i]; v != nil {
+				targets = append(targets, v)
+			}
+		}
+	} else {
+		for _, v := range elems {
+			targets = append(targets, v)
+		}
+	}
+
+	var out []Finding
+	for _, v := range targets {
+		if u := unbox(v); u != nil && types.Implements(u.Type(), errorIface) {
+			out = append(out, a.classify(v, seen)...)
+		}
+	}
+	return out
 }
 
 // calleeName is the package-qualified name of fn, e.g. "errors.New".
@@ -233,4 +318,120 @@ func (a *analyzer) unresolved(at ssa.Value, reason string) Finding {
 		f.Pos = a.pos(at.Pos())
 	}
 	return f
+}
+
+// wrapArgIndices parses a printf-style format string and returns the 0-based
+// variadic-argument indices consumed by %w verbs. reliable is false when the
+// format uses explicit argument indices (e.g. %[2]w), which break sequential
+// argument counting; callers should then treat every error argument as wrapped.
+func wrapArgIndices(format string) (idx []int, reliable bool) {
+	reliable = true
+	arg, i := 0, 0
+
+	skipIndex := func() { // an explicit "[n]" argument index
+		reliable = false
+		for i < len(format) && format[i] != ']' {
+			i++
+		}
+		if i < len(format) {
+			i++
+		}
+	}
+	skipWidth := func() { // a width or precision: digits, or '*' (consumes an arg)
+		if i < len(format) && format[i] == '*' {
+			arg++
+			i++
+			return
+		}
+		for i < len(format) && format[i] >= '0' && format[i] <= '9' {
+			i++
+		}
+	}
+
+	for i < len(format) {
+		if format[i] != '%' {
+			i++
+			continue
+		}
+		i++ // consume '%'
+		if i >= len(format) {
+			break
+		}
+		if format[i] == '%' { // escaped percent: consumes no argument
+			i++
+			continue
+		}
+		for i < len(format) && strings.IndexByte("+-# 0", format[i]) >= 0 {
+			i++ // flags
+		}
+		if i < len(format) && format[i] == '[' {
+			skipIndex()
+		}
+		skipWidth()
+		if i < len(format) && format[i] == '.' {
+			i++
+			skipWidth()
+		}
+		if i < len(format) && format[i] == '[' {
+			skipIndex()
+		}
+		if i >= len(format) {
+			break
+		}
+		if format[i] == 'w' {
+			idx = append(idx, arg)
+		}
+		i++ // consume the verb
+		arg++
+	}
+	return idx, reliable
+}
+
+// variadicElements recovers the elements of an inline-constructed variadic
+// slice argument, keyed by position. ok is false when the slice was not built
+// inline (e.g. the call spread an existing slice with `args...`).
+func variadicElements(slice ssa.Value) (elems map[int]ssa.Value, ok bool) {
+	sl, ok := slice.(*ssa.Slice)
+	if !ok {
+		return nil, false
+	}
+	alloc, ok := sl.X.(*ssa.Alloc)
+	if !ok {
+		return nil, false
+	}
+	elems = make(map[int]ssa.Value)
+	for _, instr := range *alloc.Referrers() {
+		ia, ok := instr.(*ssa.IndexAddr)
+		if !ok || ia.X != ssa.Value(alloc) {
+			continue
+		}
+		ci, ok := ia.Index.(*ssa.Const)
+		if !ok || ci.Value == nil {
+			continue
+		}
+		pos, exact := constant.Int64Val(ci.Value)
+		if !exact {
+			continue
+		}
+		for _, use := range *ia.Referrers() {
+			if st, ok := use.(*ssa.Store); ok && st.Addr == ssa.Value(ia) {
+				elems[int(pos)] = st.Val
+			}
+		}
+	}
+	return elems, true
+}
+
+// unbox strips interface-boxing operations to reach the underlying value.
+func unbox(v ssa.Value) ssa.Value {
+	for {
+		switch x := v.(type) {
+		case *ssa.MakeInterface:
+			return x.X
+		case *ssa.ChangeInterface:
+			v = x.X
+		default:
+			return v
+		}
+	}
 }

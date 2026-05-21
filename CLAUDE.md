@@ -53,14 +53,21 @@ Dependency: `golang.org/x/tools` (for `go/packages` + `go/ssa`).
 
 ### Analyzer specifics & known limits
 
-- The SSA memo treats recursion cycles as contributing nothing, so mutually
-  recursive functions can be slightly under-approximated.
-- `fmt.Errorf("%w", err)` is reported as `constructed` + `Wrapped`; the wrapped
-  underlying error is **not** yet extracted (SSA variadic-slice tracing).
-- Interface method calls become `unresolved` findings, by design (see above).
+- `fmt.Errorf("%w", err)` reports the `constructed` wrapper *and* recurses into
+  the wrapped argument(s): the format string is parsed to map `%w` verbs to
+  variadic arguments, which are recovered from the SSA variadic slice.
+- Wrapped errors passed via a spread (`fmt.Errorf(f, args...)`) cannot be
+  recovered — the wrapper is still flagged `Wrapped`.
+- Errors flowing through addressed local variables are followed via their SSA
+  stores; errors stored through a pointer handed to another function are not.
+- Analysis recurses transitively into stdlib, so results normally mix resolved
+  findings with `unresolved` ones (interface calls, dynamic function values).
+- Interface method calls become `unresolved`, by design (see Scope decisions).
 - Generics are not specially handled (SSA built without `InstantiateGenerics`).
-- `internal/resolve` and `internal/analyze` tests shell out to / drive the `go`
-  tool, so the toolchain must be on `PATH` (always true under `go test`).
+- Recursion cycles contribute nothing, so mutually recursive functions can be
+  slightly under-approximated.
+- `internal/resolve` and `internal/analyze` tests drive the `go` tool, so the
+  toolchain must be on `PATH` (always true under `go test`).
 
 ## Commands
 

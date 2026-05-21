@@ -36,7 +36,15 @@ func ReturnsLocalSentinel() error { return ErrLocal }
 
 func ReturnsTyped() error { return &MyError{msg: "typed"} }
 
-func ReturnsWrapped(e error) error { return fmt.Errorf("ctx: %w", e) }
+func ReturnsWrappedSentinel() error { return fmt.Errorf("ctx: %w", io.EOF) }
+
+func ReturnsWrappedConstructed() error { return fmt.Errorf("ctx: %w", errors.New("inner")) }
+
+func ReturnsWrappedParam(e error) error { return fmt.Errorf("ctx: %w", e) }
+
+func ReturnsDoubleWrap() error {
+	return fmt.Errorf("%w / %w", io.EOF, &MyError{msg: "second"})
+}
 
 func helper() error { return errors.New("from helper") }
 
@@ -93,7 +101,6 @@ func TestAnalyzeSingleReturn(t *testing.T) {
 		{"ReturnsStdSentinel", KindSentinel, func(f Finding) bool { return f.Name == "io.EOF" }, "io.EOF"},
 		{"ReturnsLocalSentinel", KindSentinel, func(f Finding) bool { return f.Name == "testpkg.ErrLocal" }, "testpkg.ErrLocal"},
 		{"ReturnsTyped", KindType, func(f Finding) bool { return f.Type == "*testpkg.MyError" }, "*testpkg.MyError"},
-		{"ReturnsWrapped", KindConstructed, func(f Finding) bool { return f.Wrapped }, "wraps another error"},
 		{"ReturnsTransitive", KindConstructed, func(f Finding) bool { return f.Message == "from helper" }, `transitive message "from helper"`},
 		{"ReturnsParam", KindUnresolved, func(Finding) bool { return true }, "unresolved"},
 	}
@@ -162,4 +169,83 @@ func TestAnalyzeNotFound(t *testing.T) {
 	if _, err := Analyze(".", "DoesNotExist", loadFixture(t)); err == nil {
 		t.Fatal("Analyze: want error for missing function, got nil")
 	}
+}
+
+func TestAnalyzeWrapped(t *testing.T) {
+	dir := loadFixture(t)
+
+	t.Run("sentinel", func(t *testing.T) {
+		got := findingsFor(t, dir, "ReturnsWrappedSentinel")
+		assertWrapped(t, got)
+		if !hasSentinel(got, "io.EOF") {
+			t.Errorf("got %+v, want the wrapped io.EOF sentinel", got)
+		}
+	})
+	t.Run("constructed", func(t *testing.T) {
+		got := findingsFor(t, dir, "ReturnsWrappedConstructed")
+		assertWrapped(t, got)
+		if !hasConstructedMessage(got, "inner") {
+			t.Errorf("got %+v, want the wrapped constructed %q error", got, "inner")
+		}
+	})
+	t.Run("param", func(t *testing.T) {
+		got := findingsFor(t, dir, "ReturnsWrappedParam")
+		assertWrapped(t, got)
+		if !hasKind(got, KindUnresolved) {
+			t.Errorf("got %+v, want the wrapped parameter as unresolved", got)
+		}
+	})
+	t.Run("double", func(t *testing.T) {
+		got := findingsFor(t, dir, "ReturnsDoubleWrap")
+		assertWrapped(t, got)
+		if !hasSentinel(got, "io.EOF") || !hasType(got, "*testpkg.MyError") {
+			t.Errorf("got %+v, want both %%w targets: io.EOF and *testpkg.MyError", got)
+		}
+	})
+}
+
+func assertWrapped(t *testing.T, fs []Finding) {
+	t.Helper()
+	for _, f := range fs {
+		if f.Kind == KindConstructed && f.Wrapped {
+			return
+		}
+	}
+	t.Errorf("got %+v, want a constructed finding with Wrapped=true", fs)
+}
+
+func hasKind(fs []Finding, k Kind) bool {
+	for _, f := range fs {
+		if f.Kind == k {
+			return true
+		}
+	}
+	return false
+}
+
+func hasSentinel(fs []Finding, name string) bool {
+	for _, f := range fs {
+		if f.Kind == KindSentinel && f.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func hasType(fs []Finding, typ string) bool {
+	for _, f := range fs {
+		if f.Kind == KindType && f.Type == typ {
+			return true
+		}
+	}
+	return false
+}
+
+func hasConstructedMessage(fs []Finding, msg string) bool {
+	for _, f := range fs {
+		if f.Kind == KindConstructed && f.Message == msg {
+			return true
+		}
+	}
+	return false
 }
