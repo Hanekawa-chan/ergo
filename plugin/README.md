@@ -5,14 +5,18 @@ return, computed by the `ergo` analyzer in the parent directory.
 
 ## Status
 
-Phase 0 — project scaffold only. No features yet.
+Phase 1 — the `ergo` analyzer is cross-compiled, bundled into the plugin, and
+invokable via `ErgoRunner`. Not yet wired into any IDE UI.
 
 ## Prerequisites
 
 - A JDK 17+ on `PATH` (or `JAVA_HOME`) to start Gradle. The build provisions
   JDK 21 for compilation automatically via the Foojay toolchain resolver.
-- At runtime the bundled `ergo` analyzer needs a Go toolchain on the end
-  user's machine; later phases derive it from the project's Go SDK.
+- The **Go toolchain** on `PATH` at build time — Gradle cross-compiles `ergo`
+  for every bundled platform.
+- At runtime the bundled `ergo` analyzer also needs a Go toolchain; for now it
+  inherits the IDE's environment, and a later phase derives it from the
+  project's Go SDK.
 
 ## Build
 

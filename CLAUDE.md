@@ -57,8 +57,12 @@ The project is split across two languages:
   to its string name.
 
 - `plugin/` — the JetBrains IDE plugin (Kotlin, Gradle, IntelliJ Platform
-  Gradle Plugin 2.x, targets GoLand + the bundled Go plugin). Phase 0 scaffold
-  only — no features yet. Has its own Gradle build; see `plugin/README.md`.
+  Gradle Plugin 2.x, targets GoLand + the bundled Go plugin). Gradle
+  cross-compiles `ergo` for every platform and embeds the binaries under
+  `/bin` in the plugin jar; `ErgoBinary` extracts the host's at runtime and
+  `ErgoRunner` invokes `ergo errors -json`, parsed by `ErgoJson` into an
+  `ErgoResult`. Not yet wired into any IDE UI. Has its own Gradle build; see
+  `plugin/README.md`.
 
 Dependency: `golang.org/x/tools` (for `go/packages` + `go/ssa`).
 
