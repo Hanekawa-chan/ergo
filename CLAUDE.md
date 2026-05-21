@@ -61,10 +61,13 @@ The project is split across two languages:
   cross-compiles `ergo` for every platform and embeds the binaries under
   `/bin` in the plugin jar; `ErgoBinary` extracts the host's at runtime and
   `ErgoRunner` invokes `ergo errors -json`, parsed by `ErgoJson` into an
-  `ErgoResult`. `ErgoDocumentationProvider` (registered `order="first"` for the
-  Go language) delegates to the Go plugin for the base documentation, then
-  appends the findings as an "Errors (ergo)" section in the Quick
-  Documentation popup. Has its own Gradle build; see `plugin/README.md`.
+  `ErgoResult`. `ErgoService` (project service) runs the analyzer, caches
+  successful results (keyed by the project-wide PSI modification count), and
+  augments the subprocess PATH from the Go SDK. `ErgoDocumentationProvider`
+  (registered `order="first"` for the Go language) delegates to the Go plugin
+  for the base documentation, then appends the findings as an "Errors (ergo)"
+  section in the Quick Documentation popup. Has its own Gradle build; see
+  `plugin/README.md`.
 
 Dependency: `golang.org/x/tools` (for `go/packages` + `go/ssa`).
 

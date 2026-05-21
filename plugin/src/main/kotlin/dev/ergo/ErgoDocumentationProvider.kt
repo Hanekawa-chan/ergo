@@ -6,7 +6,11 @@ import com.intellij.lang.LanguageExtension
 import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleUtilCore
 import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import java.nio.file.Path
@@ -21,7 +25,12 @@ import java.nio.file.Path
  */
 class ErgoDocumentationProvider : DocumentationProvider {
 
-    private data class Target(val name: String, val dir: Path)
+    private data class Target(
+        val name: String,
+        val dir: Path,
+        val project: Project,
+        val module: Module?,
+    )
 
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? {
         // PSI access happens under a read action; the analyzer subprocess runs
@@ -34,7 +43,13 @@ class ErgoDocumentationProvider : DocumentationProvider {
         } ?: return base
 
         val section = try {
-            ErgoDocHtml.section(ErgoRunner.analyze(target.name, target.dir))
+            val result = ErgoService.getInstance(target.project).errorsFor(
+                target.name,
+                target.dir,
+                target.module,
+                ProgressManager.getInstance().progressIndicator,
+            )
+            ErgoDocHtml.section(result)
         } catch (e: ProcessCanceledException) {
             throw e
         } catch (e: Exception) {
@@ -64,7 +79,12 @@ class ErgoDocumentationProvider : DocumentationProvider {
         if (element !is GoFunctionDeclaration && element !is GoMethodDeclaration) return null
         val name = (element as PsiNamedElement).name?.takeIf { it.isNotEmpty() } ?: return null
         val dir = element.containingFile?.virtualFile?.parent ?: return null
-        return Target(name, Path.of(dir.path))
+        return Target(
+            name = name,
+            dir = Path.of(dir.path),
+            project = element.project,
+            module = ModuleUtilCore.findModuleForPsiElement(element),
+        )
     }
 
     private companion object {
