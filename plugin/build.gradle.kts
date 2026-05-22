@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
@@ -51,6 +52,15 @@ intellijPlatform {
         token = providers.environmentVariable("PUBLISH_TOKEN")
         channels = providers.gradleProperty("version").map { version ->
             listOf(version.substringAfter('-', "").substringBefore('.').ifEmpty { "default" })
+        }
+    }
+
+    // `verifyPlugin` runs the JetBrains Plugin Verifier. The plugin depends on
+    // the Go plugin, so it is checked against GoLand specifically — IDEs
+    // without the Go plugin cannot satisfy that dependency.
+    pluginVerification {
+        ides {
+            create(IntelliJPlatformType.GoLand, providers.gradleProperty("platformVersion"))
         }
     }
 }

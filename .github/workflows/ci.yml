@@ -72,6 +72,10 @@ jobs:
       - name: Build and test
         run: ./gradlew test buildPlugin
 
+      # Runs the JetBrains Plugin Verifier against GoLand (see build.gradle.kts).
+      - name: Verify plugin
+        run: ./gradlew verifyPlugin
+
       - name: Upload plugin artifact
         uses: actions/upload-artifact@v4
         with:

@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  */
 object ErgoBinary {
     private val LOG = logger<ErgoBinary>()
-    private const val PLUGIN_ID = "dev.ergo.intellij"
+    private const val PLUGIN_ID = "dev.ergo"
 
     /**
      * Returns the path to a runnable `ergo` binary for this platform, extracting

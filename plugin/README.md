@@ -28,6 +28,7 @@ against a real Go module.
 ./gradlew buildPlugin   # assemble the plugin .zip under build/distributions
 ./gradlew runIde        # launch a sandbox GoLand with the plugin loaded
 ./gradlew test          # run tests
+./gradlew verifyPlugin  # run the JetBrains Plugin Verifier against GoLand
 ```
 
 `platformVersion` in `gradle.properties` selects the GoLand release the plugin

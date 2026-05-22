@@ -1,6 +1,6 @@
 <!-- Plugin configuration. <version> and <idea-version> are patched in by Gradle. -->
 <idea-plugin>
-    <id>dev.ergo.intellij</id>
+    <id>dev.ergo</id>
     <name>Ergo</name>
     <vendor>Ergo</vendor>
 
