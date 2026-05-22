@@ -17,22 +17,22 @@ jobs:
       run:
         working-directory: plugin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # The Gradle build cross-compiles the bundled ergo binaries.
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # Gate the release on a green test run — tag pushes do not trigger ci.yml.
       - name: Test
