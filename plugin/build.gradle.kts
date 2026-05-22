@@ -30,7 +30,10 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")
-            untilBuild = providers.gradleProperty("pluginUntilBuild")
+            // No untilBuild: the platform handles forward compatibility, and
+            // pinning it would block users on newer IDEs (verifyPlugin-
+            // ProjectConfiguration flags it). Marketplace compatibility can be
+            // capped server-side per version if a future GoLand ever breaks it.
         }
     }
 
