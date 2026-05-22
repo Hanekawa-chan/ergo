@@ -10,13 +10,15 @@ import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.TimeUnit
 
 /**
  * Locates the bundled `ergo` analyzer binary for the running OS/architecture.
  *
  * The cross-compiled binaries ride along in the plugin jar under `/bin`. On
  * first use the one matching this platform is extracted to a version-stamped
- * directory under the IDE system path and marked executable.
+ * directory under the IDE system path, marked executable, and — on macOS —
+ * cleared of the quarantine flag so Gatekeeper does not block it.
  */
 object ErgoBinary {
     private val LOG = logger<ErgoBinary>()
@@ -42,6 +44,7 @@ object ErgoBinary {
             val tmp = Files.createTempFile(target.parent, "ergo", ".tmp")
             Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
             tmp.toFile().setExecutable(true, /* ownerOnly = */ false)
+            clearQuarantine(tmp)
             try {
                 Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE)
             } catch (_: FileAlreadyExistsException) {
@@ -49,6 +52,34 @@ object ErgoBinary {
             }
         }
         return target
+    }
+
+    /**
+     * Strips every extended attribute — most importantly `com.apple.quarantine`
+     * — from [file] on macOS. The bundled binaries are unsigned; with the
+     * quarantine flag set Gatekeeper refuses to run them ("cannot be opened
+     * because the developer cannot be verified"). A failure here is non-fatal:
+     * the binary may still run, so the extraction is allowed to proceed.
+     */
+    private fun clearQuarantine(file: Path) {
+        if (!SystemInfo.isMac) return
+        try {
+            val process = ProcessBuilder("/usr/bin/xattr", "-c", file.toString())
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+            when {
+                !process.waitFor(5, TimeUnit.SECONDS) -> {
+                    process.destroyForcibly()
+                    LOG.warn("xattr timed out clearing quarantine on $file")
+                }
+                process.exitValue() != 0 ->
+                    LOG.warn("xattr exited ${process.exitValue()} clearing quarantine on $file")
+            }
+        } catch (e: Exception) {
+            LOG.warn("could not clear quarantine on $file", e)
+            if (e is InterruptedException) Thread.currentThread().interrupt()
+        }
     }
 
     /** The bundled binary file name for this platform, e.g. `ergo-linux-amd64`. */
