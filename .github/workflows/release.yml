@@ -34,9 +34,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # Gate the release on a green test run — tag pushes do not trigger ci.yml.
+      # Gate the release on green tests and a clean plugin verification —
+      # tag pushes do not trigger ci.yml.
       - name: Test
         run: ./gradlew test
+
+      - name: Verify plugin
+        run: ./gradlew verifyPlugin -Pversion="${GITHUB_REF_NAME#v}"
 
       - name: Sign and publish to JetBrains Marketplace
         run: ./gradlew publishPlugin -Pversion="${GITHUB_REF_NAME#v}"
