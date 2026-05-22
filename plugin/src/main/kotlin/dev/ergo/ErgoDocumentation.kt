@@ -35,7 +35,9 @@ class ErgoDocumentationTargetProvider : PsiDocumentationTargetProvider {
     ): DocumentationTarget? {
         if (element !is GoFunctionDeclaration && element !is GoMethodDeclaration) return null
         val name = (element as PsiNamedElement).name?.takeIf { it.isNotEmpty() } ?: return null
-        return ErgoDocumentationTarget(element, originalElement, name, element.project)
+        // For a method, the receiver type narrows ergo's by-bare-name results.
+        val receiver = (element as? GoMethodDeclaration)?.receiver?.type?.text
+        return ErgoDocumentationTarget(element, originalElement, name, receiver, element.project)
     }
 }
 
@@ -52,6 +54,7 @@ class ErgoDocumentationTarget(
     private val element: PsiElement,
     private val originalElement: PsiElement?,
     private val name: String,
+    private val receiver: String?,
     val project: Project,
 ) : DocumentationTarget {
 
@@ -59,9 +62,10 @@ class ErgoDocumentationTarget(
         val elementPtr = SmartPointerManager.createPointer(element)
         val originalPtr = originalElement?.let { SmartPointerManager.createPointer(it) }
         val name = this.name
+        val receiver = this.receiver
         return Pointer {
             val element = elementPtr.element ?: return@Pointer null
-            ErgoDocumentationTarget(element, originalPtr?.element, name, element.project)
+            ErgoDocumentationTarget(element, originalPtr?.element, name, receiver, element.project)
         }
     }
 
@@ -98,7 +102,7 @@ class ErgoDocumentationTarget(
                 context.module,
                 ProgressManager.getInstance().progressIndicator,
             )
-            ErgoDocHtml.section(result)
+            ErgoDocHtml.section(result, receiver)
         } catch (e: ProcessCanceledException) {
             throw e
         } catch (e: Exception) {

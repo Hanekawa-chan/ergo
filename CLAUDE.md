@@ -69,6 +69,9 @@ The project is split across two languages:
   and appends an "Errors (ergo)" section. It must be async
   (`DocumentationResult.asyncDocumentation`) because the analyzer subprocess
   cannot block under the read action that wraps synchronous documentation.
+  `ergo errors` is queried by bare name and returns every same-named
+  function/method, so for a method the results are filtered to the hovered
+  receiver (`ErgoReceiver` matches PSI vs analyzer receiver spellings).
   Each finding links to its origin: `ErgoDocHtml` emits `ergo://` links and
   `ErgoDocLinkHandler` navigates the editor when one is clicked. Has its own
   Gradle build; see `plugin/README.md`.

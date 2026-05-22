@@ -97,4 +97,60 @@ class ErgoDocHtmlTest {
         assertTrue("a positioned finding should be a link", html.contains("<a href=\"ergo://"))
         assertTrue(html.contains("io.EOF"))
     }
+
+    @Test
+    fun filtersToTheHoveredReceiver() {
+        val result = ErgoResult.Success(
+            listOf(
+                ErgoFunction(
+                    name = "Close",
+                    recv = "*rcv.Reader",
+                    findings = listOf(ErgoFinding(kind = "sentinel", name = "io.EOF")),
+                ),
+                ErgoFunction(
+                    name = "Close",
+                    recv = "*rcv.Writer",
+                    findings = listOf(ErgoFinding(kind = "type", type = "*os.PathError")),
+                ),
+            ),
+        )
+        val html = ErgoDocHtml.section(result, receiver = "*Reader")
+        assertTrue("the hovered receiver's error is shown", html.contains("io.EOF"))
+        assertFalse("the other receiver's error is hidden", html.contains("*os.PathError"))
+        // A single match needs no per-function label.
+        assertFalse(html.contains(").Close"))
+    }
+
+    @Test
+    fun reportsNoErrorWhenHoveredReceiverHasNone() {
+        val result = ErgoResult.Success(
+            listOf(
+                ErgoFunction(name = "Close", recv = "*rcv.Reader", findings = emptyList()),
+                ErgoFunction(
+                    name = "Close",
+                    recv = "*rcv.Writer",
+                    findings = listOf(ErgoFinding(kind = "type", type = "*os.PathError")),
+                ),
+            ),
+        )
+        val html = ErgoDocHtml.section(result, receiver = "*Reader")
+        assertTrue("hovered receiver returns no error", html.contains("returns no error"))
+        assertFalse("the other receiver's error is hidden", html.contains("*os.PathError"))
+    }
+
+    @Test
+    fun fallsBackToAllWhenReceiverMatchesNothing() {
+        val result = ErgoResult.Success(
+            listOf(
+                ErgoFunction(
+                    name = "Close",
+                    recv = "*rcv.Reader",
+                    findings = listOf(ErgoFinding(kind = "sentinel", name = "io.EOF")),
+                ),
+            ),
+        )
+        // An unrecognized receiver must not hide the only result.
+        val html = ErgoDocHtml.section(result, receiver = "*Mystery")
+        assertTrue(html.contains("io.EOF"))
+    }
 }

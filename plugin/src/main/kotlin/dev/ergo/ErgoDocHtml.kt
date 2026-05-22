@@ -11,20 +11,35 @@ import com.intellij.openapi.util.text.StringUtil
  */
 object ErgoDocHtml {
 
-    /** Builds the section for [result]. */
-    fun section(result: ErgoResult): String {
+    /**
+     * Builds the section for [result]. When [receiver] — the receiver type of
+     * the hovered method — is given, same-named methods of other receivers are
+     * dropped, so a method's popup shows only its own errors.
+     */
+    fun section(result: ErgoResult, receiver: String? = null): String {
         val content = StringBuilder()
         when (result) {
             is ErgoResult.Failure -> content.append(grayed(escape(result.message)))
-            is ErgoResult.Success -> renderFunctions(result.functions, content)
+            is ErgoResult.Success -> renderFunctions(result.functions, receiver, content)
         }
         return "<table class='sections'>" +
             "<tr><td valign='top' class='section'><p>Errors (ergo)</p></td>" +
             "<td valign='top'>$content</td></tr></table>"
     }
 
-    private fun renderFunctions(functions: List<ErgoFunction>, out: StringBuilder) {
-        val withErrors = functions.filterNot { it.findings.isNullOrEmpty() }
+    private fun renderFunctions(
+        functions: List<ErgoFunction>,
+        receiver: String?,
+        out: StringBuilder,
+    ) {
+        // ergo is queried by bare name, so it returns every same-named
+        // function. Keep only the hovered method's receiver — but fall back to
+        // all if nothing matches, so a receiver-format mismatch never hides
+        // real findings.
+        val forReceiver = functions
+            .filter { ErgoReceiver.matches(it.recv, receiver) }
+            .ifEmpty { functions }
+        val withErrors = forReceiver.filterNot { it.findings.isNullOrEmpty() }
         if (withErrors.isEmpty()) {
             out.append(grayed("returns no error"))
             return
