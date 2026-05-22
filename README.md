@@ -152,3 +152,7 @@ CI runs these checks plus the plugin build on every push — see
 Early development. The Go analyzer and CLI are functional; the JetBrains plugin
 shows the error set in Quick Documentation and is not yet published to the
 JetBrains Marketplace.
+
+## License
+
+[MIT](LICENSE) © 2026 Hanekawa-chan

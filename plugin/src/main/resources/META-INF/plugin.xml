@@ -5,9 +5,35 @@
     <vendor>Ergo</vendor>
 
     <description><![CDATA[
-        <p><b>Ergo</b> statically determines the concrete error types and values
-        a Go function can return, and surfaces them in the Quick Documentation
-        popup.</p>
+        <p><b>Ergo</b> reveals the concrete errors a Go function can return.</p>
+
+        <p>Go functions return the <code>error</code> interface, never a
+        concrete type, so a signature never tells you <i>which</i> errors you
+        might get back. Ergo answers that: it statically traces the data flow
+        through a function and reports every concrete error value that can
+        reach one of its <code>return</code> statements — recursing through the
+        functions it calls, including the standard library.</p>
+
+        <p>Hover a Go function or method and the result appears as an
+        <b>"Errors (ergo)"</b> section in the Quick Documentation popup, below
+        the usual documentation. Each finding is one of:</p>
+        <ul>
+            <li><b>sentinel</b> — a package-level error value, e.g.
+            <code>io.EOF</code>;</li>
+            <li><b>type</b> — a concrete error type, e.g.
+            <code>*os.PathError</code>;</li>
+            <li><b>constructed</b> — an <code>errors.New</code> or
+            <code>fmt.Errorf</code> error, with its literal message
+            (<code>%w</code> wrapping is followed);</li>
+            <li><b>unresolved</b> — an error whose origin cannot be
+            determined, such as one returned through an interface method.</li>
+        </ul>
+
+        <p>Every finding links to the source location the error originates
+        from, so you can jump straight to where it is created.</p>
+
+        <p>Requires the Go plugin — bundled in GoLand, or installable in
+        IntelliJ IDEA Ultimate.</p>
     ]]></description>
 
     <!-- modules.platform: core APIs. plugins.go: Go PSI, and it restricts the
