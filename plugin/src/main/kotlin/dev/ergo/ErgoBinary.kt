@@ -1,28 +1,29 @@
 package dev.ergo
 
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.logger
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.system.CpuArch
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 /**
  * Locates the bundled `ergo` analyzer binary for the running OS/architecture.
  *
  * The cross-compiled binaries ride along in the plugin jar under `/bin`. On
- * first use the one matching this platform is extracted to a version-stamped
- * directory under the IDE system path, marked executable, and — on macOS —
- * cleared of the quarantine flag so Gatekeeper does not block it.
+ * first use the one matching this platform is extracted to a directory keyed
+ * by its content hash under the IDE system path, marked executable, and — on
+ * macOS — cleared of the quarantine flag so Gatekeeper does not block it.
  */
 object ErgoBinary {
     private val LOG = logger<ErgoBinary>()
-    private const val PLUGIN_ID = "dev.ergo"
+
+    /** The extracted binary, resolved once per session. */
+    private var cached: Path? = null
 
     /**
      * Returns the path to a runnable `ergo` binary for this platform, extracting
@@ -30,29 +31,46 @@ object ErgoBinary {
      */
     @Synchronized
     fun path(): Path? {
-        val name = binaryName() ?: return null
-        val target = cacheDir().resolve(name)
-        if (Files.isRegularFile(target)) return target
+        cached?.let { return it }
 
-        val stream = ErgoBinary::class.java.getResourceAsStream("/bin/$name")
-        if (stream == null) {
+        val name = binaryName() ?: return null
+        val bytes = ErgoBinary::class.java.getResourceAsStream("/bin/$name")?.use { it.readBytes() }
+        if (bytes == null) {
             LOG.warn("bundled ergo binary /bin/$name is missing from the plugin")
             return null
         }
-        stream.use { input ->
-            Files.createDirectories(target.parent)
-            val tmp = Files.createTempFile(target.parent, "ergo", ".tmp")
-            Files.copy(input, tmp, StandardCopyOption.REPLACE_EXISTING)
-            tmp.toFile().setExecutable(true, /* ownerOnly = */ false)
-            clearQuarantine(tmp)
-            try {
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE)
-            } catch (_: FileAlreadyExistsException) {
-                Files.deleteIfExists(tmp) // another thread/process won the race
-            }
+
+        // The cache directory is keyed by the binary's content hash: a plugin
+        // update that ships a new binary lands in a fresh directory and is
+        // re-extracted, while an unchanged binary is reused as-is.
+        val target = PathManager.getSystemDir()
+            .resolve("ergo").resolve(contentKey(bytes)).resolve(name)
+        if (!Files.isRegularFile(target)) {
+            extract(bytes, target)
         }
+        cached = target
         return target
     }
+
+    /** Writes [bytes] to [target] as an executable file, via a temp file. */
+    private fun extract(bytes: ByteArray, target: Path) {
+        Files.createDirectories(target.parent)
+        val tmp = Files.createTempFile(target.parent, "ergo", ".tmp")
+        Files.write(tmp, bytes)
+        tmp.toFile().setExecutable(true, /* ownerOnly = */ false)
+        clearQuarantine(tmp)
+        try {
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE)
+        } catch (_: FileAlreadyExistsException) {
+            Files.deleteIfExists(tmp) // another thread/process won the race
+        }
+    }
+
+    /** A short hex digest of [bytes], used to name the cache directory. */
+    private fun contentKey(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes)
+            .take(8)
+            .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
 
     /**
      * Strips every extended attribute — most importantly `com.apple.quarantine`
@@ -97,11 +115,5 @@ object ErgoBinary {
         }
         val ext = if (os == "windows") ".exe" else ""
         return "ergo-$os-$arch$ext"
-    }
-
-    /** A version-stamped directory, so a plugin update re-extracts the binary. */
-    private fun cacheDir(): Path {
-        val version = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.version ?: "dev"
-        return PathManager.getSystemDir().resolve("ergo").resolve(version)
     }
 }
