@@ -32,3 +32,36 @@ against a real Go module.
 
 `platformVersion` in `gradle.properties` selects the GoLand release the plugin
 is built and run against; set it to one available in JetBrains' repositories.
+
+## Publishing
+
+`build.gradle.kts` is wired for the JetBrains Marketplace:
+
+```sh
+./gradlew signPlugin      # sign the distribution with the Marketplace ZIP signer
+./gradlew publishPlugin   # sign, then upload to the Marketplace
+```
+
+Both read their secrets from the environment, so nothing sensitive is committed
+and ordinary builds (`buildPlugin`, `test`) need none of them:
+
+| Variable               | Used by         | Meaning                     |
+| ---------------------- | --------------- | --------------------------- |
+| `CERTIFICATE_CHAIN`    | `signPlugin`    | PEM certificate chain       |
+| `PRIVATE_KEY`          | `signPlugin`    | PEM private key             |
+| `PRIVATE_KEY_PASSWORD` | `signPlugin`    | private-key password        |
+| `PUBLISH_TOKEN`        | `publishPlugin` | Marketplace permanent token |
+
+The release channel is derived from the plugin version: a pre-release version
+such as `0.2.0-eap.1` publishes to the `eap` channel, a plain `0.1.0` to
+`default`.
+
+Pushing a `v*` tag (e.g. `v0.1.0`) runs
+[`.github/workflows/release.yml`](../.github/workflows/release.yml), which
+tests, signs, publishes, and opens a GitHub Release — the tag name sets the
+published version. The variables above must then be configured as GitHub
+repository secrets; the current signing key is unencrypted, so
+`PRIVATE_KEY_PASSWORD` is left unset.
+
+The **first** version of a new plugin must instead be uploaded through the
+Marketplace web form, where it goes through manual review.

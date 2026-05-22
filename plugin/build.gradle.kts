@@ -29,6 +29,28 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")
+            untilBuild = providers.gradleProperty("pluginUntilBuild")
+        }
+    }
+
+    // Signs the plugin distribution with the JetBrains Marketplace ZIP signer.
+    // The certificate chain, private key, and key password are read from the
+    // environment so no secret is committed; `signPlugin` runs only when
+    // invoked (e.g. by `publishPlugin`), so ordinary builds need none of them.
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    // `publishPlugin` uploads the signed distribution to the JetBrains
+    // Marketplace. PUBLISH_TOKEN is a Marketplace permanent token. The release
+    // channel is taken from the version's pre-release segment — a version of
+    // "0.2.0-eap.1" publishes to the "eap" channel, a plain "0.1.0" to "default".
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+        channels = providers.gradleProperty("version").map { version ->
+            listOf(version.substringAfter('-', "").substringBefore('.').ifEmpty { "default" })
         }
     }
 }
