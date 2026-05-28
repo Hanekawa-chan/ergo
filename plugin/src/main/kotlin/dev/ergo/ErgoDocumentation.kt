@@ -51,7 +51,7 @@ class ErgoDocumentationTargetProvider : PsiDocumentationTargetProvider {
  * under short read actions there; the subprocess runs with no lock held.
  */
 class ErgoDocumentationTarget(
-    private val element: PsiElement,
+    internal val element: PsiElement,
     private val originalElement: PsiElement?,
     private val name: String,
     private val receiver: String?,
